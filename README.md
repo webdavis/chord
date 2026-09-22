@@ -28,10 +28,6 @@ The table is the source of truth. The generated file is a build artifact you nev
 cargo install --git https://github.com/webdavis/chord chord
 ```
 
-That repository does not exist yet. `chord` currently lives inside a larger repository and has not been
-extracted, so the line above is the installation instruction as it will be, not a URL you can fetch
-today.
-
 ## The table
 
 A table is one TOML file. It holds groups, and a group holds bindings.

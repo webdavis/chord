@@ -143,8 +143,8 @@ mod tests {
     #[test]
     fn the_regenerate_command_the_table_names_is_what_the_reader_is_told_to_run() {
         assert_eq!(
-            mismatch("dot_bash_bindings", Some("just chord-render")),
-            "dot_bash_bindings is not what the table renders; run `just chord-render`"
+            mismatch("bindings.sh", Some("make bindings")),
+            "bindings.sh is not what the table renders; run `make bindings`"
         );
     }
 
