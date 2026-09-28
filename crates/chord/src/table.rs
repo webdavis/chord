@@ -66,6 +66,16 @@ pub enum Action<'a> {
     Macro(&'a str),
 }
 
+impl Action<'_> {
+    pub fn body(&self) -> &str {
+        match self {
+            Action::Insert(text) | Action::Run(text) | Action::Macro(text) => text,
+            Action::Function(name) => name,
+            Action::Command(command) => command,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum RowFault {
     NoAction,
