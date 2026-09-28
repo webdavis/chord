@@ -1,21 +1,11 @@
-//! The menu target: the same table as one tab-separated record per row, for
-//! the shell's binding picker to read.
-//!
-//! Every row is emitted whatever modes it binds in, which is what lets the
-//! picker show the whole surface rather than one keymap's worth of it.
-
 use super::{RenderFault, Renderer};
 use crate::table::{Action, Binding, Group, Table};
 
-/// What the file says about itself when the table names no header of its
-/// own. Skipped by the readers, which ignore a line beginning with `#`.
 const NEUTRAL_HEADER: &str = "\
 # GENERATED FILE: `chord render menu` over a chord binding table.
 # Edit the table and render again; an edit here is lost on the next render.
 ";
 
-/// The record shape is chord's own contract, so every rendering documents
-/// it whatever header the table supplies.
 const FIELD_ORDER: &str = "# key<TAB>group<TAB>kind<TAB>action<TAB>description\n";
 
 pub struct Menu;
@@ -42,20 +32,18 @@ fn record(group: &Group, binding: &Binding) -> Result<String, RenderFault> {
     let action = binding
         .action()
         .map_err(|fault_kind| RenderFault(format!("binding {:?}: {fault_kind}", binding.key)))?;
-    let (kind, body) = describe(&action);
+    let (kind, body) = kind_and_body(&action);
     Ok([
-        one_line(&binding.key),
-        one_line(&group.name),
+        single_line_field(&binding.key),
+        single_line_field(&group.name),
         kind.to_string(),
-        one_line(body),
-        one_line(binding.description.as_deref().unwrap_or_default()),
+        single_line_field(body),
+        single_line_field(binding.description.as_deref().unwrap_or_default()),
     ]
     .join("\t"))
 }
 
-/// The kind is what tells the picker whether the action is a command line it
-/// can run, a shell function it can call, or a readline command it cannot.
-fn describe<'a>(action: &Action<'a>) -> (&'static str, &'a str) {
+fn kind_and_body<'a>(action: &Action<'a>) -> (&'static str, &'a str) {
     match action {
         Action::Insert(text) => ("insert", text),
         Action::Run(text) => ("run", text),
@@ -65,8 +53,7 @@ fn describe<'a>(action: &Action<'a>) -> (&'static str, &'a str) {
     }
 }
 
-/// A record is one line of tab-separated fields, so a field carries neither.
-fn one_line(text: &str) -> String {
+fn single_line_field(text: &str) -> String {
     text.split_whitespace().collect::<Vec<&str>>().join(" ")
 }
 
@@ -182,6 +169,16 @@ mod tests {
         assert_eq!(
             rendered,
             "# picker records\n#\n# key<TAB>group<TAB>kind<TAB>action<TAB>description\n"
+        );
+    }
+
+    #[test]
+    fn every_line_that_is_not_a_record_begins_with_a_comment_mark() {
+        let rendered = render("[render.menu]\nheader = \"# picker records\\n#\\n\"\n")
+            .expect("a configured header must render");
+        assert!(
+            rendered.lines().all(|line| line.starts_with('#')),
+            "{rendered}"
         );
     }
 }
