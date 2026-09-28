@@ -54,7 +54,7 @@ fn render(target: &str, table_path: &str) -> ExitCode {
             print!("{}", rendering.text);
             ExitCode::SUCCESS
         }
-        Some(path) => match output::write(&path, &rendering.text) {
+        Some(path) => match output::write_atomically(&path, &rendering.text) {
             Ok(()) => ExitCode::SUCCESS,
             Err(refusal) => refuse(&refusal),
         },
