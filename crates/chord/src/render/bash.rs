@@ -1,19 +1,17 @@
-//! Bash: readline `bind` calls, in the style of the file this replaces.
-
 use super::{RenderFault, Renderer};
 use crate::keys;
 use crate::table::{Action, Binding, Group, Table};
 
-/// What the file says about itself when the table names no header of its
-/// own: chord wrote it, and the table is where an edit belongs.
 const NEUTRAL_HEADER: &str = "\
 # GENERATED FILE: `chord render bash` over a chord binding table.
 # Edit the table and render again; an edit here is lost on the next render.
 ";
 
-/// The keymap whose bindings must first leave vi's command mode, which is
-/// what the leading `i` in a command-mode macro does.
-const COMMAND_MODE: &str = "vi-command";
+const VI_COMMAND_MODE: &str = "vi-command";
+
+const ENTER_VI_INSERT_MODE: char = 'i';
+
+const SUBMIT_LINE: &str = "\\r";
 
 pub struct Bash;
 
@@ -42,7 +40,7 @@ fn render_group(
     for binding in &group.binding {
         out.push('\n');
         push_comment(binding.description.as_deref(), out);
-        for line in render_binding(binding, clear_line)? {
+        for line in render_binding_naming_the_row(binding, clear_line)? {
             out.push_str(&line);
             out.push('\n');
         }
@@ -61,14 +59,13 @@ fn push_comment(text: Option<&str>, out: &mut String) {
     }
 }
 
-/// Every refusal the rows raise names the row it came from, which is the
-/// only way the reader can find it in a table of hundreds.
-fn render_binding(binding: &Binding, clear_line: Option<&str>) -> Result<Vec<String>, RenderFault> {
-    bind_lines(binding, clear_line).map_err(|reason| fault(binding, &reason.0))
+fn render_binding_naming_the_row(
+    binding: &Binding,
+    clear_line: Option<&str>,
+) -> Result<Vec<String>, RenderFault> {
+    bind_lines(binding, clear_line).map_err(|reason| fault_naming_the_row(binding, &reason.0))
 }
 
-/// One `builtin bind` line per mode, or a single one for a row that names no
-/// mode and so binds in whatever keymap is current.
 fn bind_lines(binding: &Binding, clear_line: Option<&str>) -> Result<Vec<String>, RenderFault> {
     let key = keys::to_readline(&binding.key)
         .map_err(|token| RenderFault(format!("unknown key token {:?}", token.0)))?;
@@ -87,13 +84,11 @@ fn bind_lines(binding: &Binding, clear_line: Option<&str>) -> Result<Vec<String>
         .collect()
 }
 
-/// A row that types text clears the line first, so it needs the macro that
-/// does; the other row kinds never ask for one.
 fn clear_line_for<'a>(
     action: &Action<'_>,
     configured: Option<&'a str>,
 ) -> Result<Option<&'a str>, RenderFault> {
-    if !matches!(action, Action::Insert(_) | Action::Run(_)) {
+    if !types_over_the_line(action) {
         return Ok(None);
     }
     configured.map(Some).ok_or_else(|| {
@@ -103,6 +98,10 @@ fn clear_line_for<'a>(
                 .to_string(),
         )
     })
+}
+
+fn types_over_the_line(action: &Action<'_>) -> bool {
+    matches!(action, Action::Insert(_) | Action::Run(_))
 }
 
 fn bind_line(
@@ -131,10 +130,6 @@ fn bind_line(
     ))
 }
 
-/// A typed macro clears the line first, and in vi's command mode enters
-/// insert mode before it types. `Run` ends with the carriage return that
-/// submits the line. A raw `Macro` is emitted verbatim, so a row that needs
-/// one writes its own leading `i` where vi's command mode needs it.
 fn macro_body(
     mode: Option<&str>,
     action: &Action<'_>,
@@ -145,8 +140,8 @@ fn macro_body(
         return Ok(text.to_string());
     }
     let mut body = String::new();
-    if mode == Some(COMMAND_MODE) {
-        body.push('i');
+    if mode == Some(VI_COMMAND_MODE) {
+        body.push(ENTER_VI_INSERT_MODE);
     }
     let Some(clear_line) = clear_line else {
         unreachable!("a typed row without a clear-line macro is refused before here")
@@ -154,14 +149,11 @@ fn macro_body(
     body.push_str(clear_line);
     body.push_str(&escape_for_readline(text)?);
     if let Action::Run(_) = action {
-        body.push_str("\\r");
+        body.push_str(SUBMIT_LINE);
     }
     Ok(body)
 }
 
-/// Escape text for the inside of readline's double quotes. A carriage return
-/// is refused: it is what `run` appends, and a row that carries its own would
-/// submit the line somewhere the table does not say.
 fn escape_for_readline(text: &str) -> Result<String, RenderFault> {
     let mut out = String::new();
     for character in text.chars() {
@@ -182,14 +174,11 @@ fn escape_for_readline(text: &str) -> Result<String, RenderFault> {
     Ok(out)
 }
 
-/// Wrap the payload in the single quotes bash's `bind` argument uses,
-/// splicing any single quote of its own back in, which is how a quoted
-/// argument inside a bound command survives.
 fn single_quote(payload: &str) -> String {
     format!("'{}'", payload.replace('\'', "'\\''"))
 }
 
-fn fault(binding: &Binding, reason: &str) -> RenderFault {
+fn fault_naming_the_row(binding: &Binding, reason: &str) -> RenderFault {
     RenderFault(format!("binding {:?}: {reason}", binding.key))
 }
 
