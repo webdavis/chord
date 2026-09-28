@@ -210,13 +210,32 @@ there. Run `check` in your test suite or a pre-commit hook and that edit fails a
 With no `--against`, `check` compares the file the table's `output` names, which is the file `render`
 writes. Pass `--against <file>` to compare something else.
 
+## Listing
+
+`chord list --table bindings.toml` prints one line per binding, in table order: the key as you wrote
+it, the group, the description, and the action. The columns are aligned, a key is never cut short, and
+a row with no description leaves that column blank.
+
+```
+ctrl-g a a  git   Stage a path.                 git add
+ctrl-g c    git                                 git commit
+ctrl-a      line  Go to the start of the line.  beginning-of-line
+```
+
+`--group <name>` keeps only that group's bindings. A group the table does not have is refused, by
+name, on standard error, with exit code 2:
+
+```
+error[unknown-group]: gti
+```
+
 ## Exit codes
 
 | Code | Meaning                                                                                                      |
 | ---- | ------------------------------------------------------------------------------------------------------------ |
-| 0    | The render or the check succeeded.                                                                           |
+| 0    | The render, the check or the listing succeeded.                                                              |
 | 1    | `check` only: the file on disk is not what the table renders. The diff is on stderr.                         |
-| 2    | Refused. Bad arguments, an unknown target, an unreadable or invalid table, or a row the table cannot render. |
+| 2    | Refused. Bad arguments, an unknown target or group, an unreadable or invalid table, or a row it cannot use.  |
 
 A refusal always names what it refused. A row-level refusal names the row's key, because a table of
 hundreds of chords is otherwise a long file to search.
