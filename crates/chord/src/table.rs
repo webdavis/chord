@@ -1,9 +1,5 @@
-//! The binding table: shell-agnostic data, one TOML file, parsed here.
-
 use serde::Deserialize;
 
-/// The whole table. Groups carry the documentation and order the output;
-/// `render` carries what each target says about the file it writes.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Table {
@@ -13,13 +9,9 @@ pub struct Table {
     pub render: Render,
 }
 
-/// What the table says about the files it renders. Every field is optional:
-/// a table that declares none of this still renders.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Render {
-    /// The command that regenerates this table's outputs, named by a failed
-    /// `chord check` so the reader knows how to fix the file.
     pub regenerate: Option<String>,
     #[serde(default)]
     pub bash: BashRender,
@@ -27,32 +19,21 @@ pub struct Render {
     pub menu: MenuRender,
 }
 
-/// The bash target's own settings.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BashRender {
-    /// The comment block the rendered file opens with.
     pub header: Option<String>,
-    /// The readline macro that clears the line before another macro types
-    /// over it, which a typed row needs and the other row kinds do not.
     pub clear_line: Option<String>,
-    /// The file the rendering is written to. Absent sends it to standard
-    /// output.
     pub output: Option<String>,
 }
 
-/// The menu target's own settings.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MenuRender {
-    /// The comment block the rendered records open with.
     pub header: Option<String>,
-    /// The file the records are written to. Absent sends them to standard
-    /// output.
     pub output: Option<String>,
 }
 
-/// One documented section of the table.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Group {
@@ -62,16 +43,11 @@ pub struct Group {
     pub binding: Vec<Binding>,
 }
 
-/// One row. Exactly one action field is set.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
-    /// The chord in key notation, for example `ctrl-g a a`.
     pub key: String,
     pub description: Option<String>,
-    /// Editing modes the row binds in. Absent means both vi modes; an empty
-    /// list means the row binds in whatever keymap is current, with no mode
-    /// flag at all.
     pub modes: Option<Vec<String>>,
     pub insert: Option<String>,
     pub run: Option<String>,
@@ -81,23 +57,15 @@ pub struct Binding {
     pub macro_body: Option<String>,
 }
 
-/// What a row does when its chord is pressed.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action<'a> {
-    /// Type the text and leave it on the line.
     Insert(&'a str),
-    /// Type the text and run it.
     Run(&'a str),
-    /// Call a shell function (readline's `bind -x`).
     Function(&'a str),
-    /// Run a readline command such as `beginning-of-line`.
     Command(&'a str),
-    /// A readline macro body, written in readline's own escapes, for the
-    /// chords the other kinds cannot express.
     Macro(&'a str),
 }
 
-/// Why a row cannot be rendered.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RowFault {
     NoAction,
@@ -131,17 +99,15 @@ impl Binding {
         }
     }
 
-    /// The modes this row binds in. `None` in the file means both vi modes.
     pub fn modes(&self) -> &[String] {
         match &self.modes {
             Some(modes) => modes,
-            None => DEFAULT_MODES.as_slice(),
+            None => BOTH_VI_MODES.as_slice(),
         }
     }
 }
 
-/// Nearly every chord is a pair: one binding in each vi keymap.
-static DEFAULT_MODES: std::sync::LazyLock<[String; 2]> =
+static BOTH_VI_MODES: std::sync::LazyLock<[String; 2]> =
     std::sync::LazyLock::new(|| ["vi-insert".to_string(), "vi-command".to_string()]);
 
 #[cfg(test)]
