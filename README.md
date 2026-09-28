@@ -72,7 +72,11 @@ A row names exactly one of these. Naming none, or naming two, is refused.
 | `macro`    | A readline macro body in readline's own escapes, emitted verbatim. |
 
 `macro` is the escape hatch for chords the other four cannot express. Nothing is escaped or rewritten on
-the way out, so what you write is what readline gets.
+the way out, so what you write is what readline gets. That includes the leading `i` a `vi-command`
+binding needs to enter insert mode: a `macro` row that binds there writes its own.
+
+A carriage return inside `insert`, `run` or `function` text is refused. `run` is the kind that submits
+the line, and a row carrying its own would submit it somewhere the table does not say.
 
 ### Modes
 
@@ -181,7 +185,11 @@ the prompt, which is worse than a render that stops and tells you why.
 - **`menu`** produces one tab-separated record per row, `key`, group, kind, action, description. It is
   for a picker: a fuzzy finder over your own chords, so you can search the bindings you forgot you had
   and run one. Every row reaches it whatever keymaps the row binds in, so the picker shows the whole
-  surface rather than one keymap's worth.
+  surface rather than one keymap's worth. The `kind` field is what tells a picker whether the action is
+  a command line it can run, a shell function it can call, or a readline command it cannot. Every line
+  that is not a record begins with `#`: the header, and after it one line naming the field order,
+  which every rendering carries whatever header the table supplies. A picker skips lines beginning
+  with `#`.
 
 ## Workflow
 

@@ -1,17 +1,3 @@
-//! `chord`: shell key bindings are one shell-agnostic table, and this tool
-//! renders that table into each shell's native binding syntax.
-//!
-//! `chord render <target> --table <file>` writes the rendering to the file
-//! the table's `[render.<target>] output` names, or to standard output when
-//! it names none. `chord check <target> --table <file>` proves that file
-//! still matches its table, which is what keeps a hand edit to a generated
-//! file from going unnoticed; `--against <file>` compares some other file
-//! instead. A relative path, in the table or on the command line, is read
-//! from the working directory.
-//!
-//! The targets are `bash`, readline `bind` calls, and `menu`, one
-//! tab-separated record per row for the shell's binding picker.
-
 use std::process::ExitCode;
 
 mod check;
@@ -22,10 +8,8 @@ mod table;
 
 const USAGE: &str = "usage: chord render <target> --table <file>\n       chord check <target> --table <file> [--against <file>]\n       <target> is bash or menu";
 
-/// The rendering and the file disagree.
 const DIFFERS: u8 = 1;
 
-/// Argv, a table or a target this tool does not serve.
 const REFUSED: u8 = 2;
 
 fn main() -> ExitCode {
@@ -54,7 +38,7 @@ fn render(target: &str, table_path: &str) -> ExitCode {
             print!("{}", rendering.text);
             ExitCode::SUCCESS
         }
-        Some(path) => match output::write(&path, &rendering.text) {
+        Some(path) => match output::write_atomically(&path, &rendering.text) {
             Ok(()) => ExitCode::SUCCESS,
             Err(refusal) => refuse(&refusal),
         },
@@ -66,7 +50,7 @@ fn check(target: &str, table_path: &str, against_path: Option<&str>) -> ExitCode
         Ok(rendering) => rendering,
         Err(refusal) => return refuse(&refusal),
     };
-    let compared = match comparison(target, against_path, rendering.output.as_deref()) {
+    let compared = match compared_path(target, against_path, rendering.output.as_deref()) {
         Ok(path) => path.to_string(),
         Err(refusal) => return refuse(&refusal),
     };
@@ -83,10 +67,7 @@ fn check(target: &str, table_path: &str, against_path: Option<&str>) -> ExitCode
     ExitCode::from(DIFFERS)
 }
 
-/// The file a check reads. An explicit `--against` wins, since comparing
-/// against some other file is a caller's business; otherwise the target
-/// compares the file it writes.
-fn comparison<'a>(
+fn compared_path<'a>(
     target: &str,
     against_path: Option<&'a str>,
     output: Option<&'a str>,
@@ -96,9 +77,6 @@ fn comparison<'a>(
     })
 }
 
-/// What a failed check tells the reader. Only the table knows the command
-/// that regenerates the file, so a table that names none says what is wrong
-/// without naming a tool the reader may not have.
 fn mismatch(against_path: &str, regenerate: Option<&str>) -> String {
     let remedy = match regenerate {
         Some(command) => format!("run `{command}`"),
@@ -107,13 +85,9 @@ fn mismatch(against_path: &str, regenerate: Option<&str>) -> String {
     format!("{against_path} is not what the table renders; {remedy}")
 }
 
-/// A rendering, with the two things the table says about it that the
-/// rendering itself cannot carry.
 struct Rendering {
     text: String,
-    /// The file to write, or `None` for standard output.
     output: Option<String>,
-    /// The command a failed check names beside the diff.
     regenerate: Option<String>,
 }
 
@@ -160,13 +134,13 @@ mod tests {
 }
 
 #[cfg(test)]
-mod comparison_tests {
+mod compared_path_tests {
     use super::*;
 
     #[test]
     fn an_explicit_against_path_wins_over_the_tables_output() {
         assert_eq!(
-            comparison("bash", Some("other.sh"), Some("bindings.sh")),
+            compared_path("bash", Some("other.sh"), Some("bindings.sh")),
             Ok("other.sh")
         );
     }
@@ -174,14 +148,14 @@ mod comparison_tests {
     #[test]
     fn the_tables_output_is_what_a_check_compares_when_no_path_is_given() {
         assert_eq!(
-            comparison("bash", None, Some("bindings.sh")),
+            compared_path("bash", None, Some("bindings.sh")),
             Ok("bindings.sh")
         );
     }
 
     #[test]
     fn a_check_with_neither_a_path_nor_an_output_says_what_is_missing() {
-        let refusal = comparison("bash", None, None).expect_err("a check needs a file");
+        let refusal = compared_path("bash", None, None).expect_err("a check needs a file");
         assert!(refusal.contains("--against"), "{refusal}");
         assert!(refusal.contains("bash"), "{refusal}");
     }

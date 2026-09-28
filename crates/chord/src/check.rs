@@ -1,9 +1,5 @@
-//! `chord check`: is the file on disk still what the table renders?
-
 use similar::TextDiff;
 
-/// A unified diff of what the file holds against what the table renders,
-/// empty when the two are byte for byte the same.
 pub fn difference(on_disk: &str, rendered: &str, path: &str) -> String {
     if on_disk == rendered {
         return String::new();

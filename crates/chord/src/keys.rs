@@ -1,17 +1,6 @@
-//! Key notation: the shell-agnostic spelling a person writes in the table,
-//! and its translation into readline's escapes.
-//!
-//! A chord is space-separated tokens. Each is `ctrl-<char>`, `alt-<char>`
-//! (readline's meta), one of the named keys below, or one literal character.
-
-/// A token the notation does not define.
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnknownToken(pub String);
 
-/// Translate a chord such as `ctrl-g a a` into readline's `\C-gaa`.
-///
-/// The result is meant for the inside of a readline double-quoted key
-/// string, so a literal `"` or `\` is escaped for that context.
 pub fn to_readline(chord: &str) -> Result<String, UnknownToken> {
     let mut out = String::new();
     for token in chord.split_whitespace() {
@@ -22,10 +11,10 @@ pub fn to_readline(chord: &str) -> Result<String, UnknownToken> {
 
 fn token_to_readline(token: &str) -> Result<String, UnknownToken> {
     if let Some(rest) = token.strip_prefix("ctrl-") {
-        return modified(rest, 'C', token);
+        return modified_single_character(rest, 'C', token);
     }
     if let Some(rest) = token.strip_prefix("alt-") {
-        return modified(rest, 'M', token);
+        return modified_single_character(rest, 'M', token);
     }
     let named = match token {
         "esc" => Some("\\e"),
@@ -40,13 +29,16 @@ fn token_to_readline(token: &str) -> Result<String, UnknownToken> {
     }
     let mut characters = token.chars();
     match (characters.next(), characters.next()) {
-        (Some(character), None) => Ok(escape_literal(character)),
+        (Some(character), None) => Ok(escape_for_readline_quotes(character)),
         _ => Err(UnknownToken(token.to_string())),
     }
 }
 
-/// `ctrl-<char>` and `alt-<char>` each carry exactly one character.
-fn modified(rest: &str, marker: char, token: &str) -> Result<String, UnknownToken> {
+fn modified_single_character(
+    rest: &str,
+    marker: char,
+    token: &str,
+) -> Result<String, UnknownToken> {
     let mut characters = rest.chars();
     match (characters.next(), characters.next()) {
         (Some(character), None) => Ok(format!("\\{marker}-{character}")),
@@ -54,8 +46,7 @@ fn modified(rest: &str, marker: char, token: &str) -> Result<String, UnknownToke
     }
 }
 
-/// Inside readline's double quotes only these two characters need a backslash.
-fn escape_literal(character: char) -> String {
+fn escape_for_readline_quotes(character: char) -> String {
     match character {
         '"' | '\\' => format!("\\{character}"),
         _ => character.to_string(),
@@ -111,5 +102,11 @@ mod tests {
             Err(UnknownToken("hyper-a".to_string()))
         );
         assert_eq!(to_readline("ctrl-ab"), Err(UnknownToken("ctrl-ab".into())));
+    }
+
+    #[test]
+    fn a_modifier_carries_exactly_one_character() {
+        assert_eq!(to_readline("ctrl-"), Err(UnknownToken("ctrl-".into())));
+        assert_eq!(to_readline("alt-ab"), Err(UnknownToken("alt-ab".into())));
     }
 }
